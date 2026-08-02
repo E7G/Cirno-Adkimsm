@@ -894,7 +894,7 @@ public final class MainActivity extends Activity {
         addConfigToggle(parent, title, checked, true, mutation);
     }
 
-    private void addConfigToggle(LinearLayout parent, String title, boolean checked, boolean enabled,
+    private void addConfigToggle(LinearLayout parent, String title, boolean checked, boolean toggleEnabled,
                                  ConfigMutation mutation) {
         Switch toggle = new Switch(this);
         toggle.setText(title);
@@ -902,7 +902,7 @@ public final class MainActivity extends Activity {
         toggle.setTextColor(TEXT);
         toggle.setGravity(Gravity.CENTER_VERTICAL);
         toggle.setChecked(checked);
-        toggle.setEnabled(enabled);
+        toggle.setEnabled(toggleEnabled);
         toggle.setPadding(0, dp(2), 0, dp(2));
         toggle.setOnCheckedChangeListener((button, enabled) -> worker.execute(() -> {
             mutation.apply(enabled);
