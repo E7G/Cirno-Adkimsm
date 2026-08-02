@@ -4,6 +4,7 @@ import android.os.Process;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import nep.timeline.cirno.GlobalVars;
@@ -84,7 +85,8 @@ public class FrozenRW {
             return -1;
         }
         try {
-            return Integer.parseInt(Files.readString(Paths.get(path)).trim());
+            String value = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8).trim();
+            return Integer.parseInt(value);
         } catch (Throwable ignored) {
             return -1;
         }
