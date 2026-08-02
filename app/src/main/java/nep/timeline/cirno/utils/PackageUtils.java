@@ -335,7 +335,7 @@ public class PackageUtils {
             item.frozenProcessCount = snapshot.frozenCount;
             item.compactedProcessCount = snapshot.compactedCount;
             item.isFrozen = snapshot.isFrozen;
-            item.frozenType = item.isFrozen ? "V2" : null;
+            item.frozenType = item.isFrozen ? snapshot.frozenType : null;
             item.rss = snapshot.rss;
             item.cpuUsage = snapshot.cpuUsage;
             item.notFrozenReason = item.isFrozen ? null : snapshot.reason;
@@ -448,11 +448,13 @@ public class PackageUtils {
         }
         snapshot.rss = parseIntBetween(value, "RSS[", "]", 0);
         snapshot.cpuUsage = parseFloatBetween(value, "CPU[", "]", 0f);
-        if (value.startsWith("V2(")) {
+        if (value.startsWith("V1(") || value.startsWith("V2(")) {
+            snapshot.frozenType = value.startsWith("V1(") ? "V1" : "V2";
+            int payloadStart = value.indexOf('(') + 1;
             int slash = value.indexOf('/');
             int close = value.indexOf(')');
-            if (slash > 3 && close > slash) {
-                snapshot.frozenCount = parseIntSafe(value.substring(3, slash), 0);
+            if (slash > payloadStart && close > slash) {
+                snapshot.frozenCount = parseIntSafe(value.substring(payloadStart, slash), 0);
                 snapshot.processCount = parseIntSafe(value.substring(slash + 1, close), 0);
             }
             snapshot.isFrozen = snapshot.frozenCount > 0;
@@ -520,6 +522,7 @@ public class PackageUtils {
 
     private static final class FrozenSnapshot {
         private boolean isFrozen;
+        private String frozenType;
         private String reason = "UNKNOWN";
         private int processCount;
         private int frozenCount;

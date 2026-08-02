@@ -2,6 +2,7 @@ package nep.timeline.cirno;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -9,23 +10,32 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.topjohnwu.superuser.io.SuFile;
+import com.topjohnwu.superuser.io.SuFileInputStream;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -43,15 +53,15 @@ import nep.timeline.cirno.utils.PackageUtils;
 
 /** Native Android UI: app configuration plus a live freezer-effect monitor. */
 public final class MainActivity extends Activity {
-    private static final int BG = Color.rgb(246, 247, 251);
-    private static final int SURFACE = Color.WHITE;
-    private static final int TEXT = Color.rgb(28, 35, 48);
-    private static final int MUTED = Color.rgb(105, 115, 132);
-    private static final int BORDER = Color.rgb(226, 231, 239);
-    private static final int ACCENT = Color.rgb(79, 70, 229);
-    private static final int GREEN = Color.rgb(23, 132, 83);
-    private static final int ORANGE = Color.rgb(205, 112, 25);
-    private static final int RED = Color.rgb(191, 63, 63);
+    private int BG;
+    private int SURFACE;
+    private int TEXT;
+    private int MUTED;
+    private int BORDER;
+    private int ACCENT;
+    private int GREEN;
+    private int ORANGE;
+    private int RED;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "Cirno-UI");
@@ -69,8 +79,11 @@ public final class MainActivity extends Activity {
     private EditText search;
     private TextView appTab;
     private TextView monitorTab;
+    private TextView logTab;
     private TextView appStatus;
     private TextView monitorStatus;
+    private TextView logStatus;
+    private TextView logText;
     private TextView runningValue;
     private TextView frozenValue;
     private TextView processValue;
@@ -79,6 +92,7 @@ public final class MainActivity extends Activity {
     private FrameLayout content;
     private View appPage;
     private View monitorPage;
+    private View logPage;
     private boolean monitoring;
     private boolean monitorRefreshPending;
 
@@ -86,6 +100,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         AppRuntime.init(this);
+        applyThemeColors();
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
@@ -108,11 +123,40 @@ public final class MainActivity extends Activity {
         content = new FrameLayout(this);
         appPage = buildAppPage();
         monitorPage = buildMonitorPage();
+        logPage = buildLogPage();
         content.addView(appPage, new FrameLayout.LayoutParams(-1, -1));
         content.addView(monitorPage, new FrameLayout.LayoutParams(-1, -1));
+        content.addView(logPage, new FrameLayout.LayoutParams(-1, -1));
         monitorPage.setVisibility(View.GONE);
+        logPage.setVisibility(View.GONE);
         root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+    }
+
+    private void applyThemeColors() {
+        boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+        if (dark) {
+            BG = Color.rgb(17, 19, 24);
+            SURFACE = Color.rgb(28, 31, 39);
+            TEXT = Color.rgb(239, 242, 248);
+            MUTED = Color.rgb(166, 175, 190);
+            BORDER = Color.rgb(55, 61, 73);
+            ACCENT = Color.rgb(145, 145, 255);
+            GREEN = Color.rgb(91, 207, 145);
+            ORANGE = Color.rgb(246, 170, 86);
+            RED = Color.rgb(255, 125, 125);
+        } else {
+            BG = Color.rgb(246, 247, 251);
+            SURFACE = Color.WHITE;
+            TEXT = Color.rgb(28, 35, 48);
+            MUTED = Color.rgb(105, 115, 132);
+            BORDER = Color.rgb(226, 231, 239);
+            ACCENT = Color.rgb(79, 70, 229);
+            GREEN = Color.rgb(23, 132, 83);
+            ORANGE = Color.rgb(205, 112, 25);
+            RED = Color.rgb(191, 63, 63);
+        }
     }
 
     private View buildHeader() {
@@ -145,11 +189,14 @@ public final class MainActivity extends Activity {
         tabs.setBackground(round(SURFACE, 0, 16));
         appTab = tab("应用配置");
         monitorTab = tab("实时监控");
+        logTab = tab("环形日志");
         tabs.addView(appTab, new LinearLayout.LayoutParams(0, -1, 1));
         tabs.addView(monitorTab, new LinearLayout.LayoutParams(0, -1, 1));
+        tabs.addView(logTab, new LinearLayout.LayoutParams(0, -1, 1));
         appTab.setOnClickListener(v -> showPage(false));
         monitorTab.setOnClickListener(v -> showPage(true));
-        updateTabStyle(false);
+        logTab.setOnClickListener(v -> showLogPage());
+        updateTabStyle(0);
         return tabs;
     }
 
@@ -235,6 +282,35 @@ public final class MainActivity extends Activity {
         return page;
     }
 
+    private View buildLogPage() {
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(0, dp(10), 0, 0);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPadding(0, 0, 0, dp(8));
+        logStatus = text("最近 4 MB · 最多 10000 行", 12, false);
+        logStatus.setTextColor(MUTED);
+        actions.addView(logStatus, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView refresh = action("刷新");
+        refresh.setOnClickListener(v -> loadLogs());
+        actions.addView(refresh, new LinearLayout.LayoutParams(dp(76), dp(36)));
+        page.addView(actions);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackground(round(SURFACE, BORDER, 14));
+        logText = text("读取环形日志…", 12, false);
+        logText.setTypeface(Typeface.MONOSPACE);
+        logText.setTextColor(TEXT);
+        logText.setGravity(Gravity.TOP | Gravity.START);
+        logText.setPadding(dp(14), dp(14), dp(14), dp(14));
+        scroll.addView(logText, new ScrollView.LayoutParams(-1, -2));
+        page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        return page;
+    }
+
     private LinearLayout.LayoutParams metricParams() {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(82), 1);
         params.leftMargin = dp(4);
@@ -282,7 +358,8 @@ public final class MainActivity extends Activity {
     private void showPage(boolean monitor) {
         appPage.setVisibility(monitor ? View.GONE : View.VISIBLE);
         monitorPage.setVisibility(monitor ? View.VISIBLE : View.GONE);
-        updateTabStyle(monitor);
+        logPage.setVisibility(View.GONE);
+        updateTabStyle(monitor ? 1 : 0);
         monitoring = monitor;
         if (monitor) {
             loadMonitor(true);
@@ -293,11 +370,70 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void updateTabStyle(boolean monitor) {
-        appTab.setTextColor(monitor ? MUTED : ACCENT);
-        monitorTab.setTextColor(monitor ? ACCENT : MUTED);
-        appTab.setBackground(round(monitor ? SURFACE : 0x164F46E5, 0, 12));
-        monitorTab.setBackground(round(monitor ? 0x164F46E5 : SURFACE, 0, 12));
+    private void showLogPage() {
+        appPage.setVisibility(View.GONE);
+        monitorPage.setVisibility(View.GONE);
+        logPage.setVisibility(View.VISIBLE);
+        monitoring = false;
+        mainHandler.removeCallbacks(monitorTick);
+        updateTabStyle(2);
+        loadLogs();
+    }
+
+    private void updateTabStyle(int selected) {
+        appTab.setTextColor(selected == 0 ? ACCENT : MUTED);
+        monitorTab.setTextColor(selected == 1 ? ACCENT : MUTED);
+        logTab.setTextColor(selected == 2 ? ACCENT : MUTED);
+        appTab.setBackground(round(selected == 0 ? 0x164F46E5 : SURFACE, 0, 12));
+        monitorTab.setBackground(round(selected == 1 ? 0x164F46E5 : SURFACE, 0, 12));
+        logTab.setBackground(round(selected == 2 ? 0x164F46E5 : SURFACE, 0, 12));
+    }
+
+    private void loadLogs() {
+        logStatus.setText("读取中…");
+        worker.execute(() -> {
+            String content = readRingLog();
+            runOnUiThread(() -> {
+                logText.setText(content);
+                logStatus.setText(content.startsWith("无法读取")
+                        ? "读取失败"
+                        : "环形日志 · 最近 4 MB · 自动保留最新内容");
+            });
+        });
+    }
+
+    private String readRingLog() {
+        try {
+            SuFile file = new SuFile(GlobalVars.LOG_DIR, "current.log");
+            if (!file.exists() || file.length() == 0L) {
+                return "暂无日志\n\n请确认 Hook 已启用，并在日志级别中开启信息或调试。";
+            }
+            long length = file.length();
+            long offset = Math.max(0L, length - 4L * 1024L * 1024L);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try (SuFileInputStream input = SuFileInputStream.open(file)) {
+                long remaining = offset;
+                while (remaining > 0L) {
+                    long skipped = input.skip(remaining);
+                    if (skipped <= 0L) break;
+                    remaining -= skipped;
+                }
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            }
+            String value = new String(output.toByteArray(), StandardCharsets.UTF_8);
+            if (offset > 0L) value = value.substring(value.indexOf('\n') + 1);
+            String[] lines = value.split("\\R");
+            int start = Math.max(0, lines.length - 10000);
+            StringBuilder result = new StringBuilder();
+            for (int i = start; i < lines.length; i++) {
+                if (!lines[i].trim().isEmpty()) result.append(lines[i]).append('\n');
+            }
+            return result.length() == 0 ? "暂无日志" : result.toString();
+        } catch (Throwable error) {
+            return "无法读取环形日志：" + (error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
+        }
     }
 
     private void loadApps() {
@@ -385,7 +521,8 @@ public final class MainActivity extends Activity {
     }
 
     private void showMonitorDetails(AppItem item) {
-        String status = item.isFrozen ? "已冻结 · V2" : "未冻结 · " + shortReason(item.notFrozenReason);
+        String type = item.frozenType == null || item.frozenType.isEmpty() ? "未知类型" : item.frozenType;
+        String status = item.isFrozen ? "已冻结 · " + type : "未冻结 · " + shortReason(item.notFrozenReason);
         String message = status
                 + "\n\n进程：" + item.frozenProcessCount + "/" + item.applicationProcessCount + " 已冻结"
                 + "\nCPU：" + String.format(Locale.ROOT, "%.2f%%", item.cpuUsage)
@@ -396,6 +533,94 @@ public final class MainActivity extends Activity {
                 .setMessage(message)
                 .setPositiveButton("关闭", null)
                 .show();
+    }
+
+    private void showAppConfig(AppItem item) {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(20), dp(4), dp(20), dp(4));
+        TextView packageText = text(item.packageName + "  ·  用户 " + item.userId, 12, false);
+        packageText.setTextColor(MUTED);
+        body.addView(packageText, new LinearLayout.LayoutParams(-1, -2));
+        TextView hint = text("开关会立即写入 root 配置；冻结名单可在列表开关快速切换。", 12, false);
+        hint.setTextColor(MUTED);
+        hint.setPadding(0, dp(6), 0, dp(8));
+        body.addView(hint);
+
+        addConfigToggle(body, "冻结名单", item.black, enabled -> AppConfigs.setBlackApp(item.packageName, item.userId, enabled));
+        addConfigToggle(body, "白名单（完全豁免）", item.white, enabled -> AppConfigs.setWhiteApp(item.packageName, item.userId, enabled));
+        addConfigToggle(body, "允许后台播放", item.backgroundPlay, enabled -> AppConfigs.setBackgroundPlayAllowed(item.packageName, item.userId, enabled));
+        addConfigToggle(body, "允许定位", item.locationCheck != 0, enabled -> AppConfigs.setLocationUseAllowed(item.packageName, item.userId, enabled));
+        addConfigToggle(body, "允许网络消息", item.networkCheck, enabled -> AppConfigs.setNetworkMessageAllowed(item.packageName, item.userId, enabled));
+        addConfigToggle(body, "显示网络速度", item.networkSpeedEnabled, enabled -> AppConfigs.setNetworkSpeedAllowed(item.packageName, item.userId, enabled));
+        addConfigToggle(body, "拦截后台自启动", item.blockAutostart, enabled -> AppConfigs.setAutostartBlocked(item.packageName, item.userId, enabled));
+        addConfigToggle(body, "禁用内存 Trim", item.memoryTrimConfig, enabled -> AppConfigs.setMemoryTrimEnabled(item.packageName, item.userId, !enabled));
+        addConfigToggle(body, "禁用 Trim GC", item.memoryTrimGcConfig, enabled -> AppConfigs.setMemoryTrimGcEnabled(item.packageName, item.userId, !enabled));
+
+        EditText oom = new EditText(this);
+        oom.setSingleLine(true);
+        oom.setTextSize(14);
+        oom.setTextColor(TEXT);
+        oom.setHintTextColor(MUTED);
+        oom.setHint("默认");
+        oom.setInputType(InputType.TYPE_CLASS_NUMBER);
+        if (AppConfigs.isValidBackgroundOomAdj(item.backgroundOomAdj)) oom.setText(String.valueOf(item.backgroundOomAdj));
+        oom.setSelectAllOnFocus(true);
+        body.addView(label("后台 OOM Adj（0-999，留空恢复默认）"));
+        body.addView(oom, new LinearLayout.LayoutParams(-1, dp(48)));
+
+        String excluded = AppConfigs.getExcludedProcesses(item.packageName, item.userId).toString();
+        TextView process = text("冻结进程排除：" + (excluded.equals("[]") ? "无" : excluded), 12, false);
+        process.setTextColor(MUTED);
+        process.setPadding(0, dp(10), 0, dp(4));
+        body.addView(process);
+        scroll.addView(body);
+
+        new AlertDialog.Builder(this)
+                .setTitle(item.appName == null ? item.packageName : item.appName)
+                .setView(scroll)
+                .setNegativeButton("关闭", null)
+                .setPositiveButton("保存 OOM", (dialog, which) -> saveOomAdj(item, oom.getText().toString()))
+                .show();
+    }
+
+    private TextView label(String value) {
+        TextView view = text(value, 12, false);
+        view.setTextColor(MUTED);
+        view.setPadding(0, dp(10), 0, 0);
+        return view;
+    }
+
+    private void addConfigToggle(LinearLayout parent, String title, boolean checked, ConfigMutation mutation) {
+        Switch toggle = new Switch(this);
+        toggle.setText(title);
+        toggle.setTextSize(14);
+        toggle.setTextColor(TEXT);
+        toggle.setGravity(Gravity.CENTER_VERTICAL);
+        toggle.setChecked(checked);
+        toggle.setPadding(0, dp(2), 0, dp(2));
+        toggle.setOnCheckedChangeListener((button, enabled) -> worker.execute(() -> {
+            mutation.apply(enabled);
+            ConfigManager.manager.saveConfigSU();
+        }));
+        parent.addView(toggle, new LinearLayout.LayoutParams(-1, dp(48)));
+    }
+
+    private void saveOomAdj(AppItem item, String value) {
+        worker.execute(() -> {
+            int adj = AppConfigs.BACKGROUND_OOM_ADJ_DEFAULT;
+            if (value != null && !value.trim().isEmpty()) {
+                try { adj = Integer.parseInt(value.trim()); } catch (NumberFormatException ignored) { }
+            }
+            AppConfigs.setBackgroundOomAdj(item.packageName, item.userId, adj);
+            ConfigManager.manager.saveConfigSU();
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "应用配置已保存", Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    private interface ConfigMutation {
+        void apply(boolean enabled);
     }
 
     private String shortReason(String reason) {
@@ -445,6 +670,7 @@ public final class MainActivity extends Activity {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "已保存 " + item.packageName, Toast.LENGTH_SHORT).show());
             }));
             row.addView(freeze, new LinearLayout.LayoutParams(-2, -2));
+            row.setOnClickListener(v -> showAppConfig(item));
             return row;
         }
     }
@@ -457,7 +683,8 @@ public final class MainActivity extends Activity {
             AppItem item = getItem(position);
             LinearLayout row = makeRow(recycled);
             addAppIdentity(row, item, true);
-            TextView state = text(item.isFrozen ? "已冻结" : "未冻结", 12, true);
+            String type = item.frozenType == null || item.frozenType.isEmpty() ? "未知" : item.frozenType;
+            TextView state = text(item.isFrozen ? "已冻结 · " + type : "未冻结", 12, true);
             state.setTextColor(item.isFrozen ? GREEN : ORANGE);
             state.setGravity(Gravity.CENTER);
             state.setBackground(round(item.isFrozen ? 0x1636A269 : 0x16CD7019, 0, 10));
@@ -492,7 +719,8 @@ public final class MainActivity extends Activity {
         TextView name = text(item.appName == null ? item.packageName : item.appName, 15, true);
         TextView detail;
         if (monitor) {
-            detail = text(item.frozenProcessCount + "/" + item.applicationProcessCount + " 进程 · "
+            String type = item.isFrozen && item.frozenType != null ? " · " + item.frozenType : "";
+            detail = text(item.frozenProcessCount + "/" + item.applicationProcessCount + " 进程" + type + " · "
                     + String.format(Locale.ROOT, "%.2f%% CPU · %s", item.cpuUsage, formatMemory(item.rss)), 11, false);
         } else {
             detail = text(item.packageName + "#" + item.userId, 11, false);
