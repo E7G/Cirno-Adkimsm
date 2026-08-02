@@ -75,14 +75,6 @@ configure<ApplicationExtension> {
     sourceSets["main"].jniLibs.directories.add("src/main/jniLibs")
 }
 
-// Native Views are the shipping UI; keep legacy Compose source in git but out
-// of compilation so its runtime and GPU blur dependencies are not packaged.
-kotlin {
-    sourceSets.named("main") {
-        kotlin.exclude("**/ui/**")
-    }
-}
-
 dependencies {
     implementation(project(":librekernel"))
     implementation(libs.gson)
