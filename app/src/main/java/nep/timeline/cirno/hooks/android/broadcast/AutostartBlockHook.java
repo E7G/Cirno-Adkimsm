@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
 import nep.timeline.cirno.framework.MethodHook;
 import nep.timeline.cirno.log.Log;
@@ -76,7 +77,9 @@ public class AutostartBlockHook extends MethodHook {
                     for (int i = 0; i < list.size(); i++) {
                         ResolveInfo info = (ResolveInfo) list.get(i);
                         String pkg = (info.activityInfo != null) ? info.activityInfo.packageName : null;
-                        if (pkg != null && AppConfigs.isAutostartBlocked(pkg, userId)) {
+                        if (pkg != null
+                                && !CommonConstants.isTelephonyPackage(pkg, -1)
+                                && AppConfigs.isAutostartBlocked(pkg, userId)) {
                             if (LOGGED_BLOCKS.add(pkg + ":" + userId)) {
                                 Log.i("AutostartBlockHook: blocked pkg=" + pkg + " userId=" + userId);
                             }

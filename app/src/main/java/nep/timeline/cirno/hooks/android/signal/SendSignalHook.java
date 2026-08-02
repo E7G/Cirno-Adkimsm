@@ -2,10 +2,9 @@ package nep.timeline.cirno.hooks.android.signal;
 
 import android.os.Process;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.reflect.CakeHooker;
-import nep.timeline.cirno.entity.AppRecord;
 import nep.timeline.cirno.framework.MethodHook;
-import nep.timeline.cirno.services.MonitorBinderHub;
 import nep.timeline.cirno.services.ProcessService;
 import nep.timeline.cirno.virtuals.ProcessRecord;
 
@@ -41,6 +40,10 @@ public class SendSignalHook extends MethodHook {
 
                 ProcessRecord processRecord = ProcessService.getProcessRecordByPid(pid);
                 if (processRecord == null || processRecord.isDeathProcess())
+                    return;
+
+                if (CommonConstants.isTelephonyPackage(
+                        processRecord.getPackageName(), processRecord.getRunningUid()))
                     return;
 
                 ProcessService.removeProcessRecordWithoutThaw(processRecord, "Process.sendSignal(SIGKILL)");

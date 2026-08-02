@@ -3,6 +3,7 @@ package nep.timeline.cirno.services;
 import java.util.List;
 import java.util.Objects;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
 import nep.timeline.cirno.configs.policy.FreezeExemption;
 import nep.timeline.cirno.entity.AppRecord;
@@ -30,6 +31,9 @@ public class FreezerService {
      */
     public static void freezer(AppRecord appRecord) {
         if (appRecord == null)
+            return;
+
+        if (CommonConstants.isTelephonyPackage(appRecord.getPackageName(), appRecord.getUid()))
             return;
 
         synchronized (appRecord) {
@@ -166,6 +170,9 @@ public class FreezerService {
 
     public static void temporaryUnfreezeIfNeed(AppRecord appRecord, String reason, long interval) {
         if (appRecord == null)
+            return;
+
+        if (CommonConstants.isTelephonyPackage(appRecord.getPackageName(), appRecord.getUid()))
             return;
 
         boolean blacklisted = AppConfigs.isBlackApp(appRecord.getPackageName(), appRecord.getUserId());

@@ -4,6 +4,7 @@ import android.os.Handler;
 
 import java.nio.ByteBuffer;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
 import nep.timeline.cirno.entity.AppRecord;
 import nep.timeline.cirno.log.Log;
@@ -64,6 +65,7 @@ public class OomAdjService {
 
     private static boolean shouldApply(AppRecord appRecord) {
         return appRecord != null
+                && !CommonConstants.isTelephonyPackage(appRecord.getPackageName(), appRecord.getUid())
                 && !appRecord.getAppState().isVisible()
                 && AppConfigs.hasBackgroundOomAdj(appRecord.getPackageName(), appRecord.getUserId());
     }

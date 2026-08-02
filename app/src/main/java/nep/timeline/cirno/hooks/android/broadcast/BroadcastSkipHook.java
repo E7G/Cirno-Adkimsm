@@ -3,6 +3,7 @@ package nep.timeline.cirno.hooks.android.broadcast;
 import android.content.Intent;
 import android.os.Build;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
 import nep.timeline.cirno.framework.MethodHook;
 import nep.timeline.cirno.log.Log;
@@ -93,6 +94,9 @@ public class BroadcastSkipHook extends MethodHook {
 
                     String packageName = processRecord.getPackageName();
                     int userId = processRecord.getUserId();
+                    if (CommonConstants.isTelephonyPackage(packageName, processRecord.getRunningUid())) {
+                        return;
+                    }
                     if (AppConfigs.isAutostartBlocked(packageName, userId)) {
                         callback.result = "Skipping deliver [Cirno]: autostart blocked";
                         return;

@@ -23,6 +23,11 @@ public class FreezeExemptionChecker {
         String pkg = appRecord.getPackageName();
         int userId = appRecord.getUserId();
 
+        // phone/IMS 在无 RIL 的平板上可能被系统反复拉起；保持完全旁路，避免策略钩子放大 ANR。
+        if (CommonConstants.isTelephonyPackage(pkg, appRecord.getUid())) {
+            return FreezeExemption.TELEPHONY;
+        }
+
         if (appState != null && appState.isWaitingNotification()) {
             return FreezeExemption.WAITING_PUSH_RESPONSE;
         }

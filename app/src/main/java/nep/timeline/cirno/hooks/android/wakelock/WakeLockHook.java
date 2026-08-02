@@ -4,6 +4,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.WorkSource;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
 import nep.timeline.cirno.reflect.CakeHooker;
 import nep.timeline.cirno.entity.AppRecord;
@@ -46,6 +47,9 @@ public class WakeLockHook extends MethodHook {
             public void call(CakeHooker.BeforeHookCallback callback) {
                 String packageName = (String) callback.getArgs()[4];
                 int uid = (int) callback.getArgs()[7];
+
+                if (CommonConstants.isTelephonyPackage(packageName, uid))
+                    return;
 
                 AppRecord appRecord = AppService.get(packageName, PKGUtils.getUserId(uid));
                 if (appRecord == null)

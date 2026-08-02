@@ -3,6 +3,7 @@ package nep.timeline.cirno.services;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.entity.AppRecord;
 import nep.timeline.cirno.log.Log;
 import nep.timeline.cirno.reflect.CakeReflection;
@@ -48,7 +49,8 @@ public class ProcessService {
                 FrozenRW.thawQuietly(oldRecord.getRunningUid(), oldPid);
         }
 
-        if (scheduleFreeze)
+        if (scheduleFreeze && !CommonConstants.isTelephonyPackage(
+                appRecord.getPackageName(), appRecord.getUid()))
             FreezerHandler.sendFreezeMessage(appRecord);
 
         return processRecord;

@@ -20,7 +20,8 @@ public enum FreezeExemption {
     VPN("VPN", "\uD83C\uDF10 使用VPN服务中"),
     NETWORK_SPEED("NETWORK_SPEED", "\uD83D\uDEDC 网速传输中"),
     WAITING_FROZEN("WAITING_FROZEN", "\u23F3 等待冻结"),
-    UNKNOWN("UNKNOWN", "未知");
+    UNKNOWN("UNKNOWN", "未知"),
+    TELEPHONY("TELEPHONY", "TELEPHONY");
 
     public final String reason;
     public final String displayText;

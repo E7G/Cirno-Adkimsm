@@ -6,6 +6,8 @@ public interface CommonConstants {
     String NATIVE_PACKAGE_NAME = BuildConfig.APPLICATION_ID;
     String SHELL = "com.android.shell";
     String ANDROID = "android";
+    // Android PHONE_UID。电话/IMS 链路不参与 Cirno 的冻结和后台优化。
+    int TELEPHONY_UID = 1001;
     Set<String> whiteApps = Set.of(
             NATIVE_PACKAGE_NAME,
             ANDROID,
@@ -85,6 +87,13 @@ public interface CommonConstants {
             "com.samsung.android.incallui",
             "com.samsung.android.smartcallprovider",
             "com.samsung.android.intellivoiceservice",
+            "com.android.phone",
+            "com.android.providers.telephony",
+            "com.android.mms.service",
+            "com.android.server.telecom",
+            "com.android.imsserviceentitlement",
+            "org.codeaurora.ims",
+            "com.qualcomm.qti.telephonyservice",
             "com.qti.qcc",
             "com.sec.epdg",
             "com.sec.imsservice",
@@ -94,5 +103,20 @@ public interface CommonConstants {
 
     static boolean isWhitelistApps(String packageName) {
         return whiteApps.contains(packageName);
+    }
+
+    static boolean isTelephonyUid(int uid) {
+        return uid == TELEPHONY_UID;
+    }
+
+    static boolean isTelephonyPackage(String packageName, int uid) {
+        return isTelephonyUid(uid)
+                || "com.android.phone".equals(packageName)
+                || "com.android.providers.telephony".equals(packageName)
+                || "com.android.mms.service".equals(packageName)
+                || "com.android.server.telecom".equals(packageName)
+                || "com.android.imsserviceentitlement".equals(packageName)
+                || "org.codeaurora.ims".equals(packageName)
+                || "com.qualcomm.qti.telephonyservice".equals(packageName);
     }
 }

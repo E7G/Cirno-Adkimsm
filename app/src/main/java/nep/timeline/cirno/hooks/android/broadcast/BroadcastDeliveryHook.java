@@ -3,6 +3,7 @@ package nep.timeline.cirno.hooks.android.broadcast;
 import android.content.Intent;
 import android.os.Build;
 
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
 import nep.timeline.cirno.reflect.CakeHooker;
 import nep.timeline.cirno.reflect.CakeReflection;
@@ -63,6 +64,8 @@ public class BroadcastDeliveryHook extends MethodHook {
 
                 String packageName = processRecord.getPackageName();
                 int userId = processRecord.getUserId();
+                if (CommonConstants.isTelephonyPackage(packageName, processRecord.getRunningUid()))
+                    return;
                 // BroadcastRecord 包装延迟到确认需要 skip 时才构造（此 hook 是广播分发最热路径）
                 if (AppConfigs.isAutostartBlocked(packageName, userId)) {
                     logSkippedBroadcast(record, callback.getArgs(), processRecord, "autostartBlocked");
