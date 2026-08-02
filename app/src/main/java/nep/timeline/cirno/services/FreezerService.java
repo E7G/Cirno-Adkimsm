@@ -10,7 +10,7 @@ import nep.timeline.cirno.entity.AppRecord;
 import nep.timeline.cirno.GlobalVars;
 import nep.timeline.cirno.hooks.android.xiaomi.XiaomiHooks;
 import nep.timeline.cirno.log.Log;
-import nep.timeline.cirno.nativecore.NativePolicy;
+import nep.timeline.cirno.core.AndroidPolicy;
 import nep.timeline.cirno.threads.FreezerHandler;
 import nep.timeline.cirno.threads.Handlers;
 import nep.timeline.cirno.utils.ForceAppStandbyListener;
@@ -45,15 +45,15 @@ public class FreezerService {
             }
 
             int policyFlags = 0;
-            if (appRecord.isSystem()) policyFlags |= NativePolicy.SYSTEM;
-            if (appRecord.getAppState().isVisible()) policyFlags |= NativePolicy.VISIBLE;
-            if (appRecord.getAppState().isLocation()) policyFlags |= NativePolicy.LOCATION;
-            if (appRecord.getAppState().isAudio()) policyFlags |= NativePolicy.AUDIO;
-            if (appRecord.getAppState().isRecording()) policyFlags |= NativePolicy.RECORDING;
-            if (appRecord.getAppState().isVpn()) policyFlags |= NativePolicy.VPN;
-            if (appRecord.getAppState().isNetworkActive()) policyFlags |= NativePolicy.NETWORK_ACTIVE;
-            if (NativePolicy.isClover()) policyFlags |= NativePolicy.CLOVER;
-            if (!NativePolicy.shouldFreeze(policyFlags, appRecord.getProcessRecords().size())) return;
+            if (appRecord.isSystem()) policyFlags |= AndroidPolicy.SYSTEM;
+            if (appRecord.getAppState().isVisible()) policyFlags |= AndroidPolicy.VISIBLE;
+            if (appRecord.getAppState().isLocation()) policyFlags |= AndroidPolicy.LOCATION;
+            if (appRecord.getAppState().isAudio()) policyFlags |= AndroidPolicy.AUDIO;
+            if (appRecord.getAppState().isRecording()) policyFlags |= AndroidPolicy.RECORDING;
+            if (appRecord.getAppState().isVpn()) policyFlags |= AndroidPolicy.VPN;
+            if (appRecord.getAppState().isNetworkActive()) policyFlags |= AndroidPolicy.NETWORK_ACTIVE;
+            if (AndroidPolicy.isClover()) policyFlags |= AndroidPolicy.CLOVER;
+            if (!AndroidPolicy.shouldFreeze(policyFlags, appRecord.getProcessRecords().size())) return;
 
             // 冻结前修剪内存：进程只有在运行时才能真正处理 trim/GC。
             // （冻结后再发 oneway binder 只会积压在目标进程的 binder 缓冲区，

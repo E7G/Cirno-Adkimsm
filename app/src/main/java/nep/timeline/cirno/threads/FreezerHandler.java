@@ -6,7 +6,7 @@ import nep.timeline.cirno.GlobalVars;
 import nep.timeline.cirno.entity.AppRecord;
 import nep.timeline.cirno.entity.AppState;
 import nep.timeline.cirno.log.Log;
-import nep.timeline.cirno.nativecore.NativePolicy;
+import nep.timeline.cirno.core.AndroidPolicy;
 
 public class FreezerHandler {
     public static final Handler handler = new FreezerMessageHandler(Handlers.makeLooper("Freezer"));
@@ -81,7 +81,7 @@ public class FreezerHandler {
         if (GlobalVars.globalSettings == null) {
             return 5_000L;
         }
-        int flags = NativePolicy.isClover() ? NativePolicy.CLOVER : 0;
-        return NativePolicy.delayMs(GlobalVars.globalSettings.freezeDelay, flags);
+        int flags = AndroidPolicy.isClover() ? AndroidPolicy.CLOVER : 0;
+        return AndroidPolicy.delayMs(GlobalVars.globalSettings.freezeDelay, flags);
     }
 }

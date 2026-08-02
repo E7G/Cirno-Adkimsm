@@ -47,8 +47,8 @@ import java.util.concurrent.Executors;
 import nep.timeline.cirno.configs.ConfigManager;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
 import nep.timeline.cirno.entity.AppItem;
-import nep.timeline.cirno.nativecore.AppRuntime;
-import nep.timeline.cirno.nativecore.NativePolicy;
+import nep.timeline.cirno.core.AndroidPolicy;
+import nep.timeline.cirno.utils.AndroidRuntime;
 import nep.timeline.cirno.utils.PackageUtils;
 
 /** Native Android UI: app configuration plus a live freezer-effect monitor. */
@@ -99,7 +99,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        AppRuntime.init(this);
+        AndroidRuntime.init(this);
         applyThemeColors();
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
@@ -168,7 +168,7 @@ public final class MainActivity extends Activity {
         titleLine.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text("Cirno", 28, true);
         titleLine.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView badge = text(NativePolicy.isClover() ? "CLOVER" : "ANDROID", 11, true);
+        TextView badge = text(AndroidPolicy.isClover() ? "CLOVER" : "ANDROID", 11, true);
         badge.setTextColor(ACCENT);
         badge.setGravity(Gravity.CENTER);
         badge.setBackground(round(0x1A4F46E5, 0, 12));
@@ -474,7 +474,7 @@ public final class MainActivity extends Activity {
         if (showLoading) monitorProgress.setVisibility(View.VISIBLE);
         worker.execute(() -> {
             List<AppItem> result;
-            try { result = PackageUtils.getFrozenApplication(AppRuntime.context()); }
+            try { result = PackageUtils.getFrozenApplication(AndroidRuntime.context()); }
             catch (Throwable error) { result = new ArrayList<>(); }
             List<AppItem> loaded = result;
             runOnUiThread(() -> {
@@ -514,7 +514,7 @@ public final class MainActivity extends Activity {
         int delay = GlobalVars.globalSettings == null ? 5 : GlobalVars.globalSettings.freezeDelay;
         new AlertDialog.Builder(this)
                 .setTitle("低功耗策略")
-                .setMessage("clover 设备已启用 Rust 策略核心。\n\n冻结防抖：" + delay
+                .setMessage("clover 设备已启用 Android 原生策略核心。\n\n冻结防抖：" + delay
                         + " 秒\n前台、音频、定位、录音、VPN 和活跃网络进程会自动豁免。")
                 .setPositiveButton("知道了", null)
                 .show();

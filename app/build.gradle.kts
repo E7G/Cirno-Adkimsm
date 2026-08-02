@@ -22,9 +22,6 @@ configure<ApplicationExtension> {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
     }
 
     val freezerType = "Cirno"
@@ -72,7 +69,6 @@ configure<ApplicationExtension> {
         aidl = true
     }
 
-    sourceSets["main"].jniLibs.directories.add("src/main/jniLibs")
 }
 
 dependencies {
