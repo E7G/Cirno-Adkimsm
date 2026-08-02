@@ -548,7 +548,7 @@ public final class MainActivity extends Activity {
                 monitorAdapter.notifyDataSetChanged();
                 monitorProgress.setVisibility(View.GONE);
                 monitorStatus.setText("实时刷新 · " + new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date())
-                        + " · 点击应用查看冻结详情");
+                        + " · " + freezeTypeSummary());
             });
         });
     }
@@ -576,6 +576,17 @@ public final class MainActivity extends Activity {
         frozenValue.setText(frozenProcesses + "/" + totalProcesses);
         monitorStatus.setText("V1 " + v1 + " · V2 " + v2 + " · 冻结应用 " + frozenApps);
         processValue.setText(totalProcesses == 0 ? "—" : Math.round(frozenProcesses * 100f / totalProcesses) + "%");
+    }
+
+    private String freezeTypeSummary() {
+        int v1 = 0;
+        int v2 = 0;
+        for (AppItem item : monitorApps) {
+            if (!item.isFrozen) continue;
+            if ("V1".equalsIgnoreCase(item.frozenType)) v1++;
+            if ("V2".equalsIgnoreCase(item.frozenType)) v2++;
+        }
+        return "V1 " + v1 + " · V2 " + v2;
     }
 
     private void showSettings() {
