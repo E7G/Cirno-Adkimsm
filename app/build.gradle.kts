@@ -7,7 +7,6 @@ import org.gradle.kotlin.dsl.configure
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
 }
 
 configure<ApplicationExtension> {
@@ -18,18 +17,39 @@ configure<ApplicationExtension> {
     defaultConfig {
         minSdk = 31
         targetSdk = 37
-        versionCode = 8
+        versionCode = 9
         versionName = "${versionCode}-${buildTime}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     val freezerType = "Cirno"
+    val ciKeystorePath = System.getenv("CI_KEYSTORE")
+    val ciKeystorePassword = System.getenv("CI_KEYSTORE_PASSWORD")
+    val ciKeyAlias = System.getenv("CI_KEY_ALIAS") ?: "cirno"
+
+    signingConfigs {
+        if (!ciKeystorePath.isNullOrBlank() && !ciKeystorePassword.isNullOrBlank()) {
+            create("ciRelease") {
+                storeFile = file(ciKeystorePath)
+                storePassword = ciKeystorePassword
+                keyAlias = ciKeyAlias
+                keyPassword = ciKeystorePassword
+            }
+        }
+    }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (!ciKeystorePath.isNullOrBlank() && !ciKeystorePassword.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("ciRelease")
+            }
             buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
             buildConfigField("String", "FREEZER_TYPE", "\"$freezerType\"")
             proguardFiles(
@@ -47,9 +67,19 @@ configure<ApplicationExtension> {
         targetCompatibility = JavaVersion.VERSION_25
     }
     buildFeatures {
-        compose = true
+        compose = false
         buildConfig = true
         aidl = true
+    }
+
+    sourceSets["main"].jniLibs.directories.add("src/main/jniLibs")
+}
+
+// Native Views are the shipping UI; keep legacy Compose source in git but out
+// of compilation so its runtime and GPU blur dependencies are not packaged.
+kotlin {
+    sourceSets.named("main") {
+        kotlin.exclude("nep/timeline/cirno/ui/**")
     }
 }
 
@@ -62,23 +92,7 @@ dependencies {
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     implementation(libs.commons.lang3)
-    implementation(libs.chrisbanes.haze)
-    implementation("androidx.navigation3:navigation3-runtime:1.1.1")
-    implementation("androidx.navigation3:navigation3-runtime-android:1.1.1")
-    implementation("androidx.navigationevent:navigationevent-compose:1.0.0-alpha10")
-    implementation("io.github.kyant0:backdrop:1.0.6")
-    implementation("com.google.accompanist:accompanist-drawablepainter:0.37.3")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    implementation("androidx.compose.material3:material3:1.5.0-alpha20")
-    implementation("com.kongzue.dialogx:DialogX:0.0.49")
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.materialkolor)
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.2")
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.2")
-    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.2")
-    implementation("top.yukonga.miuix.kmp:miuix-blur:0.9.0")
-    implementation("top.yukonga.miuix.kmp:miuix-navigation3-ui:0.9.2")
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.junit)

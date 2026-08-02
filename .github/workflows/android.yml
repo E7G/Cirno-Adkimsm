@@ -1,21 +1,15 @@
-name: Android CI
+name: Android CI and Release
 
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
-    paths:
-      - "app/**"
-      - ".github/workflows/android.yml"
+    branches: ["main", "clover-rust"]
+    tags: ["v*"]
   pull_request:
     branches: ["main"]
-    paths:
-      - "app/**"
-      - ".github/workflows/android.yml"
-  
+
 permissions:
-  contents: read
-  actions: read 
+  contents: write
 
 jobs:
   build:
@@ -24,83 +18,61 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: set up JDK 25
+      - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: 25
-          cache: 'gradle'
+          cache: gradle
+
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android NDK
+        run: sdkmanager "platforms;android-37" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.93.1
+          target: aarch64-linux-android,armv7-linux-androideabi
+
+      - name: Build Rust core for Mi Pad 4
+        run: |
+          cargo install cargo-ndk --locked
+          cargo ndk -t arm64-v8a -t armeabi-v7a -o app/src/main/jniLibs build --release --manifest-path native/Cargo.toml
+
+      - name: Generate CI signing key
+        run: keytool -genkeypair -v -keystore "$CI_KEYSTORE" -storepass "$CI_KEYSTORE_PASSWORD" -keypass "$CI_KEYSTORE_PASSWORD" -alias "$CI_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Cirno CI, O=Cirno"
+        env:
+          CI_KEYSTORE: ${{ runner.temp }}/cirno-release.jks
+          CI_KEYSTORE_PASSWORD: cirno-${{ github.run_id }}
+          CI_KEY_ALIAS: cirno
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew :app:assembleRelease
-
-      - uses: r0adkll/sign-android-release@v1
-        name: Sign app APK
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+      - name: Run unit tests and build release APK
+        run: ./gradlew testDebugUnitTest :app:assembleRelease --stacktrace
         env:
-          BUILD_TOOLS_VERSION: "35.0.0"
+          CI_KEYSTORE: ${{ runner.temp }}/cirno-release.jks
+          CI_KEYSTORE_PASSWORD: cirno-${{ github.run_id }}
+          CI_KEY_ALIAS: cirno
 
-      - name: 重命名 APK
-        id: rename
+      - name: Verify APK signature and ABI
         run: |
-          VERSION=$(jq -r '.elements[0].versionName // "unknown"' app/build/outputs/apk/release/output-metadata.json)
-          NEW_NAME="Cirno-${VERSION}-${{ github.run_number }}.apk"
-          cp "${{ steps.sign_app.outputs.signedReleaseFile }}" "$NEW_NAME"
-          echo "new_file=$NEW_NAME" >> $GITHUB_OUTPUT
+          APK=app/build/outputs/apk/release/app-release.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose "$APK"
+          unzip -l "$APK" | grep -E 'lib/(arm64-v8a|armeabi-v7a)/libcirno_native.so'
 
-      - name: Upload Release APK
+      - name: Upload installable APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.rename.outputs.new_file }}
-          path: ${{ steps.rename.outputs.new_file }}
-          if-no-files-found: warn
+          name: Cirno-clover-${{ github.run_number }}
+          path: app/build/outputs/apk/release/app-release.apk
 
-      - name: Publish to Telegram via bot
-        env:
-          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          TG_CHAT_THREAD: ${{ secrets.TG_CHAT_THREAD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          CURRENT_SHA: ${{ github.sha }}
-          WORKFLOW_NAME: "Android CI"
-        run: |
-          WORKFLOW_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/actions/workflows" \
-            | jq -r --arg name "$WORKFLOW_NAME" '.workflows[] | select(.name==$name) | .id')
-          
-          LAST_SUCCESS_SHA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW_ID/runs?status=success&per_page=1" \
-            | jq -r '.workflow_runs[0].head_sha')
-          
-          if [ -z "$LAST_SUCCESS_SHA" ]; then
-            LAST_SUCCESS_SHA="$CURRENT_SHA"
-          fi
-          
-          COMPARE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/compare/$LAST_SUCCESS_SHA...$CURRENT_SHA")
-          
-          COMMITS=$(echo "$COMPARE" | jq -r '.commits[]? | "• \(.commit.message | split("\n")[0] | .[0:70])"')
-          
-          if [ -z "$COMMITS" ]; then
-            HISTORY="无新提交"
-          else
-            HISTORY=$(printf "上次成功构建 (%s) → 当前 (%s) 的变更：\n%s" "${LAST_SUCCESS_SHA:0:7}" "${CURRENT_SHA:0:7}" "$COMMITS")
-          fi
-          
-          CAPTION=$(echo "$HISTORY" | head -c 900)
-          if [ ${#HISTORY} -gt 900 ]; then
-            CAPTION="${CAPTION}...（已截断）"
-          fi
-          
-          curl -F document=@"${{ steps.rename.outputs.new_file }}" \
-            --form-string caption="$CAPTION" \
-            "https://api.telegram.org/bot$TG_BOT_TOKEN/sendDocument?chat_id=$TG_CHAT_ID&message_thread_id=$TG_CHAT_THREAD"
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: app/build/outputs/apk/release/app-release.apk

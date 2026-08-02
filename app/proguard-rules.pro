@@ -20,3 +20,6 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 -keep class nep.timeline.cirno.** {*;}
+-keepclasseswithmembers,includedescriptorclasses class * {
+    native <methods>;
+}
