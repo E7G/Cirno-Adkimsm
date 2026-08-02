@@ -73,6 +73,7 @@ configure<ApplicationExtension> {
     }
 
     sourceSets["main"].jniLibs.directories.add("src/main/jniLibs")
+    sourceSets["main"].java.exclude("nep/timeline/cirno/ui/**")
 }
 
 // Native Views are the shipping UI; keep legacy Compose source in git but out
