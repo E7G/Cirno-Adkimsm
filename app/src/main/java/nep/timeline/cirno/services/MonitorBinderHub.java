@@ -28,6 +28,7 @@ import nep.timeline.cirno.provide.FrozenStateBinderFacade;
 import nep.timeline.cirno.reflect.CakeReflection;
 import nep.timeline.cirno.threads.Handlers;
 import nep.timeline.cirno.utils.FreezeExemptionChecker;
+import nep.timeline.cirno.utils.FrozenRW;
 import nep.timeline.cirno.virtuals.ProcessRecord;
 
 public final class MonitorBinderHub {
@@ -491,6 +492,8 @@ public final class MonitorBinderHub {
             }
             int processCount = 0;
             int frozenCount = 0;
+            int v1FrozenCount = 0;
+            int v2FrozenCount = 0;
             int compactedCount = 0;
             long rss = 0L;
             float cpuUsage = 0f;
@@ -499,8 +502,17 @@ public final class MonitorBinderHub {
                     continue;
                 }
                 processCount++;
-                if (processRecord.isFrozen()) {
+                boolean actuallyFrozen = processRecord.isFrozen()
+                        && FrozenRW.isActuallyFrozen(processRecord.getRunningUid(), processRecord.getPid());
+                if (actuallyFrozen) {
                     frozenCount++;
+                    String freezeType = FrozenRW.getFreezeType(
+                            processRecord.getRunningUid(), processRecord.getPid());
+                    if ("V1".equals(freezeType)) {
+                        v1FrozenCount++;
+                    } else if ("V2".equals(freezeType)) {
+                        v2FrozenCount++;
+                    }
                     if (processRecord.isCompacted()) {
                         compactedCount++;
                     }
@@ -516,7 +528,17 @@ public final class MonitorBinderHub {
             String cpuString = String.format(java.util.Locale.ROOT, "%.2f", cpuUsage);
             if (frozenCount > 0) {
                 StringBuilder sb = new StringBuilder();
-                sb.append("V2(").append(frozenCount).append("/").append(processCount).append(")");
+                String freezeType;
+                if (v1FrozenCount > 0 && v2FrozenCount > 0) {
+                    freezeType = "MIXED";
+                } else if (v2FrozenCount > 0) {
+                    freezeType = "V2";
+                } else if (v1FrozenCount > 0) {
+                    freezeType = "V1";
+                } else {
+                    freezeType = "UNKNOWN";
+                }
+                sb.append(freezeType).append("(").append(frozenCount).append("/").append(processCount).append(")");
                 sb.append(",RSS[").append(rss).append("]");
                 sb.append(",CPU[").append(cpuString).append("]");
                 if (compactedCount > 0) {
