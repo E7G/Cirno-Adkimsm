@@ -11,12 +11,12 @@ plugins {
 
 configure<ApplicationExtension> {
     namespace = "nep.timeline.cirno"
-    compileSdk = 37
+    compileSdk = 35
     val buildTime = SimpleDateFormat("MMddHHmm", Locale.getDefault()).format(Date())
 
     defaultConfig {
         minSdk = 31
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 9
         versionName = "${versionCode}-${buildTime}"
 
