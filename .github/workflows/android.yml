@@ -37,9 +37,10 @@ jobs:
           target: aarch64-linux-android,armv7-linux-androideabi
 
       - name: Build Rust core for Mi Pad 4
+        working-directory: native
         run: |
           cargo install cargo-ndk --locked
-          cargo ndk -t arm64-v8a -t armeabi-v7a -o app/src/main/jniLibs build --release --manifest-path native/Cargo.toml
+          cargo ndk -t arm64-v8a -t armeabi-v7a -o ../app/src/main/jniLibs build --release
 
       - name: Generate CI signing key
         run: keytool -genkeypair -v -keystore "$CI_KEYSTORE" -storepass "$CI_KEYSTORE_PASSWORD" -keypass "$CI_KEYSTORE_PASSWORD" -alias "$CI_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Cirno CI, O=Cirno"
