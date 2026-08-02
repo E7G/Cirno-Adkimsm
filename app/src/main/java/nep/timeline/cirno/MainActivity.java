@@ -46,8 +46,11 @@ import java.util.concurrent.Executors;
 
 import nep.timeline.cirno.configs.ConfigManager;
 import nep.timeline.cirno.configs.checkers.AppConfigs;
+import nep.timeline.cirno.CommonConstants;
 import nep.timeline.cirno.entity.AppItem;
 import nep.timeline.cirno.core.AndroidPolicy;
+import nep.timeline.cirno.provide.ApplicationBinder;
+import nep.timeline.cirno.provide.ApplicationBinderFacade;
 import nep.timeline.cirno.utils.AndroidRuntime;
 import nep.timeline.cirno.utils.PackageUtils;
 
@@ -72,11 +75,13 @@ public final class MainActivity extends Activity {
     private final List<AppItem> apps = new ArrayList<>();
     private final List<AppItem> monitorApps = new ArrayList<>();
     private final List<AppItem> filteredApps = new ArrayList<>();
+    private final List<AppItem> filteredMonitorApps = new ArrayList<>();
     private final Runnable monitorTick = this::scheduleMonitorRefresh;
 
     private AppAdapter appAdapter;
     private MonitorAdapter monitorAdapter;
     private EditText search;
+    private EditText monitorSearch;
     private TextView appTab;
     private TextView monitorTab;
     private TextView logTab;
@@ -95,6 +100,8 @@ public final class MainActivity extends Activity {
     private View logPage;
     private boolean monitoring;
     private boolean monitorRefreshPending;
+    private int appFilterType;
+    private TextView appFilterAction;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -103,7 +110,7 @@ public final class MainActivity extends Activity {
         applyThemeColors();
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        getWindow().getDecorView().setSystemUiVisibility(isDarkMode() ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         buildUi();
         worker.execute(() -> {
             ConfigManager.readConfig();
@@ -134,8 +141,7 @@ public final class MainActivity extends Activity {
     }
 
     private void applyThemeColors() {
-        boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                == Configuration.UI_MODE_NIGHT_YES;
+        boolean dark = isDarkMode();
         if (dark) {
             BG = Color.rgb(17, 19, 24);
             SURFACE = Color.rgb(28, 31, 39);
@@ -157,6 +163,11 @@ public final class MainActivity extends Activity {
             ORANGE = Color.rgb(205, 112, 25);
             RED = Color.rgb(191, 63, 63);
         }
+    }
+
+    private boolean isDarkMode() {
+        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
     }
 
     private View buildHeader() {
@@ -229,6 +240,11 @@ public final class MainActivity extends Activity {
         TextView refresh = action("刷新");
         refresh.setOnClickListener(v -> loadApps());
         actions.addView(refresh, new LinearLayout.LayoutParams(dp(76), dp(36)));
+        appFilterAction = action("用户应用");
+        appFilterAction.setOnClickListener(v -> showAppFilterPicker());
+        LinearLayout.LayoutParams filterParams = new LinearLayout.LayoutParams(dp(92), dp(36));
+        filterParams.leftMargin = dp(8);
+        actions.addView(appFilterAction, filterParams);
         TextView settings = action("策略");
         settings.setOnClickListener(v -> showSettings());
         LinearLayout.LayoutParams settingParams = new LinearLayout.LayoutParams(dp(76), dp(36));
@@ -253,6 +269,21 @@ public final class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(0, dp(10), 0, 0);
+
+        monitorSearch = new EditText(this);
+        monitorSearch.setSingleLine(true);
+        monitorSearch.setTextSize(14);
+        monitorSearch.setTextColor(TEXT);
+        monitorSearch.setHintTextColor(MUTED);
+        monitorSearch.setHint("搜索冻结应用或包名");
+        monitorSearch.setPadding(dp(16), 0, dp(16), 0);
+        monitorSearch.setBackground(round(SURFACE, BORDER, 14));
+        monitorSearch.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { filterMonitorApps(s.toString()); }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+        page.addView(monitorSearch, new LinearLayout.LayoutParams(-1, dp(48)));
 
         LinearLayout summary = new LinearLayout(this);
         summary.setGravity(Gravity.CENTER_VERTICAL);
@@ -463,9 +494,36 @@ public final class MainActivity extends Activity {
         for (AppItem item : apps) {
             String name = item.appName == null ? "" : item.appName.toLowerCase(Locale.ROOT);
             String pkg = item.packageName == null ? "" : item.packageName.toLowerCase(Locale.ROOT);
-            if (needle.isEmpty() || name.contains(needle) || pkg.contains(needle)) filteredApps.add(item);
+            boolean system = PackageUtils.isSystemUIChecker(this, item.packageInfo);
+            boolean typeMatch = appFilterType == 0 ? !system : system;
+            if (typeMatch && (needle.isEmpty() || name.contains(needle) || pkg.contains(needle))) filteredApps.add(item);
         }
         if (appAdapter != null) appAdapter.notifyDataSetChanged();
+    }
+
+    private void showAppFilterPicker() {
+        String[] options = {"用户应用", "系统应用"};
+        new AlertDialog.Builder(this)
+                .setTitle("应用类型")
+                .setSingleChoiceItems(options, appFilterType, (dialog, which) -> {
+                    appFilterType = which;
+                    appFilterAction.setText(options[which]);
+                    filterApps(search == null ? "" : search.getText().toString());
+                    dialog.dismiss();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void filterMonitorApps(String query) {
+        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        filteredMonitorApps.clear();
+        for (AppItem item : monitorApps) {
+            String name = item.appName == null ? "" : item.appName.toLowerCase(Locale.ROOT);
+            String pkg = item.packageName == null ? "" : item.packageName.toLowerCase(Locale.ROOT);
+            if (needle.isEmpty() || name.contains(needle) || pkg.contains(needle)) filteredMonitorApps.add(item);
+        }
+        if (monitorAdapter != null) monitorAdapter.notifyDataSetChanged();
     }
 
     private void loadMonitor(boolean showLoading) {
@@ -481,6 +539,7 @@ public final class MainActivity extends Activity {
                 monitorRefreshPending = false;
                 monitorApps.clear();
                 monitorApps.addAll(loaded);
+                filterMonitorApps(monitorSearch == null ? "" : monitorSearch.getText().toString());
                 updateMonitorSummary();
                 monitorAdapter.notifyDataSetChanged();
                 monitorProgress.setVisibility(View.GONE);
@@ -500,13 +559,18 @@ public final class MainActivity extends Activity {
         int frozenApps = 0;
         int frozenProcesses = 0;
         int totalProcesses = 0;
+        int v1 = 0;
+        int v2 = 0;
         for (AppItem item : monitorApps) {
             if (item.isFrozen) frozenApps++;
+            if (item.isFrozen && "V1".equalsIgnoreCase(item.frozenType)) v1++;
+            if (item.isFrozen && "V2".equalsIgnoreCase(item.frozenType)) v2++;
             frozenProcesses += item.frozenProcessCount;
             totalProcesses += item.applicationProcessCount;
         }
         runningValue.setText(String.valueOf(monitorApps.size()));
         frozenValue.setText(frozenProcesses + "/" + totalProcesses);
+        monitorStatus.setText("V1 " + v1 + " · V2 " + v2 + " · 冻结应用 " + frozenApps);
         processValue.setText(totalProcesses == 0 ? "—" : Math.round(frozenProcesses * 100f / totalProcesses) + "%");
     }
 
@@ -520,7 +584,7 @@ public final class MainActivity extends Activity {
                 .show();
     }
 
-    private void showMonitorDetails(AppItem item) {
+    private void showMonitorDetailsLegacy(AppItem item) {
         String type = item.frozenType == null || item.frozenType.isEmpty() ? "未知类型" : item.frozenType;
         String status = item.isFrozen ? "已冻结 · " + type : "未冻结 · " + shortReason(item.notFrozenReason);
         String message = status
@@ -535,7 +599,64 @@ public final class MainActivity extends Activity {
                 .show();
     }
 
-    private void showAppConfig(AppItem item) {
+    private void showMonitorDetails(AppItem item) {
+        String type = item.isFrozen && item.frozenType != null && !item.frozenType.isEmpty()
+                ? item.frozenType : "未知";
+        String state = item.isFrozen ? "已冻结 · " + type : "未冻结 · " + shortReason(item.notFrozenReason);
+        String message = state
+                + "\n\n进程：" + item.frozenProcessCount + "/" + item.applicationProcessCount + " 已冻结"
+                + "\n冻结类型：" + type
+                + "\nCPU：" + String.format(Locale.ROOT, "%.2f%%", item.cpuUsage)
+                + "\nRSS：" + formatMemory(item.rss)
+                + "\n压缩：" + item.compactedProcessCount + " 个进程"
+                + "\n\n类型判定：来自每个进程实际 cgroup 状态，不使用固定 V2 标签。";
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(item.appName == null ? item.packageName : item.appName)
+                .setMessage(message)
+                .setPositiveButton("关闭", null);
+        if (item.networkSpeedEnabled) {
+            builder.setNeutralButton("查看网速", (dialog, which) -> loadNetworkSpeed(item));
+        }
+        builder.show();
+    }
+
+    private void loadNetworkSpeed(AppItem item) {
+        worker.execute(() -> {
+            String result = "网速获取失败";
+            try {
+                ApplicationBinderFacade binder = ApplicationBinder.getInstance();
+                if (binder != null) {
+                    String json = binder.getNetworkSpeed(item.packageName, item.userId);
+                    long rx = parseLongField(json, "rx");
+                    long tx = parseLongField(json, "tx");
+                    result = "↑" + formatSpeed(tx) + "  ↓" + formatSpeed(rx);
+                }
+            } catch (Throwable ignored) {
+            }
+            String message = result;
+            runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
+        });
+    }
+
+    private long parseLongField(String json, String field) {
+        if (json == null) return 0L;
+        int start = json.indexOf("\"" + field + "\"");
+        if (start < 0) return 0L;
+        String value = json.substring(start + field.length() + 3);
+        int end = value.indexOf(',');
+        if (end < 0) end = value.indexOf('}');
+        try { return Long.parseLong(value.substring(0, end).trim()); } catch (Throwable ignored) { return 0L; }
+    }
+
+    private String formatSpeed(long bytesPerSec) {
+        if (bytesPerSec < 1024) return bytesPerSec + " B/s";
+        if (bytesPerSec < 1024 * 1024) {
+            return BigDecimal.valueOf(bytesPerSec).divide(BigDecimal.valueOf(1024), 1, RoundingMode.HALF_UP) + " KB/s";
+        }
+        return BigDecimal.valueOf(bytesPerSec).divide(BigDecimal.valueOf(1048576), 2, RoundingMode.HALF_UP) + " MB/s";
+    }
+
+    private void showAppConfigLegacy(AppItem item) {
         ScrollView scroll = new ScrollView(this);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -585,6 +706,183 @@ public final class MainActivity extends Activity {
                 .show();
     }
 
+    private void showAppConfig(AppItem item) {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(20), dp(4), dp(20), dp(4));
+
+        TextView packageText = text(item.packageName + " · 用户 " + item.userId, 12, false);
+        packageText.setTextColor(MUTED);
+        body.addView(packageText);
+        TextView hint = text("所有开关均写入原版 root 配置；白名单会关闭其他豁免项。", 12, false);
+        hint.setTextColor(MUTED);
+        hint.setPadding(0, dp(6), 0, dp(8));
+        body.addView(hint);
+
+        boolean systemApp = PackageUtils.isSystemUIChecker(this, item.packageInfo);
+        boolean builtinWhitelist = CommonConstants.isWhitelistApps(item.packageName);
+        if (!systemApp) {
+            addConfigToggle(body, "白名单（完全豁免）", builtinWhitelist || item.white,
+                    !builtinWhitelist, enabled -> {
+                        if (builtinWhitelist) return;
+                        AppConfigs.setWhiteApp(item.packageName, item.userId, enabled);
+                        if (enabled) {
+                            AppConfigs.setBackgroundPlayAllowed(item.packageName, item.userId, false);
+                            AppConfigs.setLocationUseAllowed(item.packageName, item.userId, false);
+                            AppConfigs.setNetworkMessageAllowed(item.packageName, item.userId, false);
+                            AppConfigs.setNetworkSpeedAllowed(item.packageName, item.userId, false);
+                        }
+                    });
+        }
+
+        boolean exemptionsEnabled = !builtinWhitelist && !item.white;
+        if (!builtinWhitelist && (!systemApp || item.black)) {
+            addConfigToggle(body, "允许后台播放", item.backgroundPlay, exemptionsEnabled,
+                    enabled -> AppConfigs.setBackgroundPlayAllowed(item.packageName, item.userId, enabled));
+            addConfigToggle(body, "允许定位", item.locationCheck != 0, exemptionsEnabled,
+                    enabled -> AppConfigs.setLocationUseAllowed(item.packageName, item.userId, enabled));
+            addConfigToggle(body, "允许网络消息", item.networkCheck, exemptionsEnabled,
+                    enabled -> AppConfigs.setNetworkMessageAllowed(item.packageName, item.userId, enabled));
+            addConfigToggle(body, "显示网络速度", item.networkSpeedEnabled, exemptionsEnabled,
+                    enabled -> AppConfigs.setNetworkSpeedAllowed(item.packageName, item.userId, enabled));
+        }
+
+        addConfigToggle(body, "拦截后台自启动", item.blockAutostart, exemptionsEnabled,
+                enabled -> AppConfigs.setAutostartBlocked(item.packageName, item.userId, enabled));
+
+        boolean globalTrim = GlobalVars.globalSettings != null && GlobalVars.globalSettings.memoryTrimEnabled;
+        addConfigToggle(body, "冻结后回收内存", AppConfigs.isMemoryTrimEnabled(item.packageName, item.userId), globalTrim,
+                enabled -> AppConfigs.setMemoryTrimEnabled(item.packageName, item.userId, enabled));
+        boolean globalGc = globalTrim && GlobalVars.globalSettings.memoryTrimGcEnabled;
+        addConfigToggle(body, "回收后触发 GC", AppConfigs.isMemoryTrimGcEnabled(item.packageName, item.userId), globalGc,
+                enabled -> AppConfigs.setMemoryTrimGcEnabled(item.packageName, item.userId, enabled));
+
+        TextView oom = text("后台 OOM Adj · " + oomLabel(AppConfigs.getBackgroundOomAdj(item.packageName, item.userId)), 14, false);
+        oom.setTextColor(TEXT);
+        oom.setGravity(Gravity.CENTER_VERTICAL);
+        oom.setPadding(0, dp(4), 0, dp(4));
+        oom.setOnClickListener(v -> showOomPicker(item, oom));
+        body.addView(oom, new LinearLayout.LayoutParams(-1, dp(52)));
+
+        addConfigToggle(body, "冻结名单", item.black, true,
+                enabled -> AppConfigs.setBlackApp(item.packageName, item.userId, enabled));
+
+        TextView processTitle = text("进程冻结控制", 14, true);
+        processTitle.setTextColor(TEXT);
+        processTitle.setPadding(0, dp(12), 0, dp(2));
+        body.addView(processTitle);
+        TextView processHint = text("开启后该进程会被冻结，关闭后该进程不会被冻结。读取中…", 12, false);
+        processHint.setTextColor(MUTED);
+        body.addView(processHint);
+        LinearLayout processContainer = new LinearLayout(this);
+        processContainer.setOrientation(LinearLayout.VERTICAL);
+        body.addView(processContainer);
+        scroll.addView(body);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(item.appName == null ? item.packageName : item.appName)
+                .setView(scroll)
+                .setNegativeButton("关闭", null)
+                .create();
+        dialog.show();
+        worker.execute(() -> {
+            List<String> processNames = loadProcessNames(item);
+            runOnUiThread(() -> {
+                if (!dialog.isShowing()) return;
+                processHint.setText(processNames.isEmpty() ? "暂无可配置进程" : "每个进程可单独排除冻结");
+                for (String processName : processNames) {
+                    boolean excluded = AppConfigs.isProcessExcludedFromFreeze(item.packageName, item.userId, processName);
+                    addConfigToggle(processContainer, processName, !excluded, true, enabled ->
+                            AppConfigs.setProcessExcludedFromFreeze(item.packageName, item.userId, processName, !enabled));
+                }
+            });
+        });
+    }
+
+    private List<String> loadProcessNames(AppItem item) {
+        List<String> names = new ArrayList<>();
+        try {
+            ApplicationBinderFacade binder = ApplicationBinder.getInstance();
+            if (binder == null) return names;
+            String json = binder.getProcessesForApp(item.packageName, item.userId);
+            if (json == null) return names;
+            String value = json.trim();
+            if (value.startsWith("[") && value.endsWith("]")) value = value.substring(1, value.length() - 1);
+            for (String token : value.split(",")) {
+                String name = token.trim().replace("\\\"", "");
+                if (!name.isEmpty() && !names.contains(name)) names.add(name);
+            }
+        } catch (Throwable ignored) {
+        }
+        return names;
+    }
+
+    private String oomLabel(int adj) {
+        if (!AppConfigs.isValidBackgroundOomAdj(adj)) return "默认";
+        return String.valueOf(adj);
+    }
+
+    private void showOomPicker(AppItem item, TextView target) {
+        String[] labels = {"默认", "保持活动（0）", "可见（100）", "可感知（200）", "服务（500）",
+                "服务 B（800）", "缓存（900）", "低优先级（999）", "自定义"};
+        int[] values = {AppConfigs.BACKGROUND_OOM_ADJ_DEFAULT, 0, 100, 200, 500, 800, 900, 999};
+        int current = AppConfigs.getBackgroundOomAdj(item.packageName, item.userId);
+        int checked = 0;
+        for (int i = 1; i < values.length; i++) if (values[i] == current) checked = i;
+        new AlertDialog.Builder(this)
+                .setTitle("后台 OOM Adj")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    if (which == labels.length - 1) {
+                        dialog.dismiss();
+                        showCustomOom(item, target);
+                        return;
+                    }
+                    saveOomValue(item, values[which], target);
+                    dialog.dismiss();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showCustomOom(AppItem item, TextView target) {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setHint("0–999");
+        int current = AppConfigs.getBackgroundOomAdj(item.packageName, item.userId);
+        if (AppConfigs.isValidBackgroundOomAdj(current)) input.setText(String.valueOf(current));
+        new AlertDialog.Builder(this)
+                .setTitle("自定义后台 OOM Adj")
+                .setMessage("取值范围：0–999；输入空值恢复默认")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", (dialog, which) -> {
+                    String value = input.getText().toString().trim();
+                    int adj = AppConfigs.BACKGROUND_OOM_ADJ_DEFAULT;
+                    if (!value.isEmpty()) {
+                        try { adj = Integer.parseInt(value); } catch (NumberFormatException ignored) { }
+                    }
+                    if (!AppConfigs.isValidBackgroundOomAdj(adj) && adj != AppConfigs.BACKGROUND_OOM_ADJ_DEFAULT) {
+                        Toast.makeText(this, "OOM Adj 必须是 0–999", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    saveOomValue(item, adj, target);
+                })
+                .show();
+    }
+
+    private void saveOomValue(AppItem item, int adj, TextView target) {
+        worker.execute(() -> {
+            AppConfigs.setBackgroundOomAdj(item.packageName, item.userId, adj);
+            ConfigManager.manager.saveConfigSU();
+            runOnUiThread(() -> {
+                target.setText("后台 OOM Adj · " + oomLabel(adj));
+                Toast.makeText(this, "OOM Adj 已保存", Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+
     private TextView label(String value) {
         TextView view = text(value, 12, false);
         view.setTextColor(MUTED);
@@ -593,12 +891,18 @@ public final class MainActivity extends Activity {
     }
 
     private void addConfigToggle(LinearLayout parent, String title, boolean checked, ConfigMutation mutation) {
+        addConfigToggle(parent, title, checked, true, mutation);
+    }
+
+    private void addConfigToggle(LinearLayout parent, String title, boolean checked, boolean enabled,
+                                 ConfigMutation mutation) {
         Switch toggle = new Switch(this);
         toggle.setText(title);
         toggle.setTextSize(14);
         toggle.setTextColor(TEXT);
         toggle.setGravity(Gravity.CENTER_VERTICAL);
         toggle.setChecked(checked);
+        toggle.setEnabled(enabled);
         toggle.setPadding(0, dp(2), 0, dp(2));
         toggle.setOnCheckedChangeListener((button, enabled) -> worker.execute(() -> {
             mutation.apply(enabled);
@@ -621,6 +925,11 @@ public final class MainActivity extends Activity {
 
     private interface ConfigMutation {
         void apply(boolean enabled);
+    }
+
+    private String shortReasonLegacy(String reason) {
+        if (reason == null || reason.isEmpty()) return "状态未知";
+        return reason.replace('_', ' ');
     }
 
     private String shortReason(String reason) {
@@ -676,8 +985,8 @@ public final class MainActivity extends Activity {
     }
 
     private final class MonitorAdapter extends BaseAdapter {
-        @Override public int getCount() { return monitorApps.size(); }
-        @Override public AppItem getItem(int position) { return monitorApps.get(position); }
+        @Override public int getCount() { return filteredMonitorApps.size(); }
+        @Override public AppItem getItem(int position) { return filteredMonitorApps.get(position); }
         @Override public long getItemId(int position) { return position; }
         @Override public View getView(int position, View recycled, ViewGroup parent) {
             AppItem item = getItem(position);
@@ -691,6 +1000,10 @@ public final class MainActivity extends Activity {
             state.setPadding(dp(8), 0, dp(8), 0);
             row.addView(state, new LinearLayout.LayoutParams(-2, dp(30)));
             row.setOnClickListener(v -> showMonitorDetails(item));
+            row.setOnLongClickListener(v -> {
+                showAppConfig(item);
+                return true;
+            });
             return row;
         }
     }
