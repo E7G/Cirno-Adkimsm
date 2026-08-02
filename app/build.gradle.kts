@@ -11,7 +11,7 @@ plugins {
 
 configure<ApplicationExtension> {
     namespace = "nep.timeline.cirno"
-    compileSdk = 35
+    compileSdk = 36
     val buildTime = SimpleDateFormat("MMddHHmm", Locale.getDefault()).format(Date())
 
     defaultConfig {

@@ -28,7 +28,7 @@ jobs:
       - name: Set up Android SDK and NDK
         uses: android-actions/setup-android@v3
       - name: Install Android NDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
