@@ -122,7 +122,7 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(18), dp(12), dp(18), 0);
+        root.setPadding(dp(20), dp(8), dp(20), 0);
 
         root.addView(buildHeader(), new LinearLayout.LayoutParams(-1, -2));
         root.addView(buildTabs(), new LinearLayout.LayoutParams(-1, dp(52)));
@@ -173,21 +173,21 @@ public final class MainActivity extends Activity {
     private View buildHeader() {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(0, 0, 0, dp(12));
+        header.setPadding(0, dp(2), 0, dp(8));
 
         LinearLayout titleLine = new LinearLayout(this);
         titleLine.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("Cirno", 28, true);
+        TextView title = text("Cirno", 25, true);
         titleLine.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView badge = text(AndroidPolicy.isClover() ? "CLOVER" : "ANDROID", 11, true);
+        TextView badge = text(AndroidPolicy.isClover() ? "MI PAD 4" : "ANDROID", 10, true);
         badge.setTextColor(ACCENT);
         badge.setGravity(Gravity.CENTER);
-        badge.setBackground(round(0x1A4F46E5, 0, 12));
+        badge.setBackground(round(0x164F46E5, 0, 12));
         badge.setPadding(dp(10), 0, dp(10), 0);
         titleLine.addView(badge, new LinearLayout.LayoutParams(-2, dp(28)));
         header.addView(titleLine);
 
-        TextView subtitle = text("低占用冻结 · 实时确认进程状态", 13, false);
+        TextView subtitle = text("轻量冻结管理 · 状态可验证", 12, false);
         subtitle.setTextColor(MUTED);
         subtitle.setPadding(0, dp(2), 0, 0);
         header.addView(subtitle);
@@ -196,8 +196,8 @@ public final class MainActivity extends Activity {
 
     private View buildTabs() {
         LinearLayout tabs = new LinearLayout(this);
-        tabs.setPadding(0, 0, 0, dp(10));
-        tabs.setBackground(round(SURFACE, 0, 16));
+        tabs.setPadding(dp(4), dp(4), dp(4), dp(4));
+        tabs.setBackground(round(SURFACE, BORDER, 14));
         appTab = tab("应用配置");
         monitorTab = tab("实时监控");
         logTab = tab("环形日志");
@@ -214,7 +214,7 @@ public final class MainActivity extends Activity {
     private View buildAppPage() {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(0, dp(10), 0, 0);
+        page.setPadding(0, dp(12), 0, 0);
 
         search = new EditText(this);
         search.setSingleLine(true);
@@ -223,7 +223,7 @@ public final class MainActivity extends Activity {
         search.setHintTextColor(MUTED);
         search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), 0, dp(16), 0);
-        search.setBackground(round(SURFACE, BORDER, 14));
+        search.setBackground(round(SURFACE, BORDER, 16));
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { filterApps(s.toString()); }
@@ -233,7 +233,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER_VERTICAL);
-        actions.setPadding(0, dp(10), 0, dp(8));
+        actions.setPadding(0, dp(10), 0, dp(6));
         appStatus = text("读取应用列表…", 12, false);
         appStatus.setTextColor(MUTED);
         actions.addView(appStatus, new LinearLayout.LayoutParams(0, -2, 1));
@@ -277,7 +277,7 @@ public final class MainActivity extends Activity {
         monitorSearch.setHintTextColor(MUTED);
         monitorSearch.setHint("搜索冻结应用或包名");
         monitorSearch.setPadding(dp(16), 0, dp(16), 0);
-        monitorSearch.setBackground(round(SURFACE, BORDER, 14));
+        monitorSearch.setBackground(round(SURFACE, BORDER, 16));
         monitorSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { filterMonitorApps(s.toString()); }
@@ -331,7 +331,7 @@ public final class MainActivity extends Activity {
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setBackground(round(SURFACE, BORDER, 14));
+        scroll.setBackground(round(SURFACE, BORDER, 16));
         logText = text("读取环形日志…", 12, false);
         logText.setTypeface(Typeface.MONOSPACE);
         logText.setTextColor(TEXT);
@@ -366,6 +366,7 @@ public final class MainActivity extends Activity {
     private TextView tab(String label) {
         TextView view = text(label, 14, true);
         view.setGravity(Gravity.CENTER);
+        view.setPadding(dp(4), 0, dp(4), 0);
         return view;
     }
 
@@ -415,9 +416,12 @@ public final class MainActivity extends Activity {
         appTab.setTextColor(selected == 0 ? ACCENT : MUTED);
         monitorTab.setTextColor(selected == 1 ? ACCENT : MUTED);
         logTab.setTextColor(selected == 2 ? ACCENT : MUTED);
-        appTab.setBackground(round(selected == 0 ? 0x164F46E5 : SURFACE, 0, 12));
-        monitorTab.setBackground(round(selected == 1 ? 0x164F46E5 : SURFACE, 0, 12));
-        logTab.setBackground(round(selected == 2 ? 0x164F46E5 : SURFACE, 0, 12));
+        appTab.setTextColor(selected == 0 ? Color.WHITE : MUTED);
+        monitorTab.setTextColor(selected == 1 ? Color.WHITE : MUTED);
+        logTab.setTextColor(selected == 2 ? Color.WHITE : MUTED);
+        appTab.setBackground(round(selected == 0 ? ACCENT : Color.TRANSPARENT, 0, 10));
+        monitorTab.setBackground(round(selected == 1 ? ACCENT : Color.TRANSPARENT, 0, 10));
+        logTab.setBackground(round(selected == 2 ? ACCENT : Color.TRANSPARENT, 0, 10));
     }
 
     private void loadLogs() {
@@ -483,7 +487,7 @@ public final class MainActivity extends Activity {
                 apps.addAll(loaded);
                 filterApps(search == null ? "" : search.getText().toString());
                 appProgress.setVisibility(View.GONE);
-                appStatus.setText(loaded.size() + " 个应用 · 点击开关加入冻结名单");
+                appStatus.setText(filteredApps.size() + " 个匹配应用 · 点击卡片查看配置");
             });
         });
     }
@@ -584,6 +588,24 @@ public final class MainActivity extends Activity {
                 .show();
     }
 
+    private String appConfigSummary(AppItem item) {
+        StringBuilder summary = new StringBuilder(item.packageName);
+        if (item.userId != 0) summary.append("#").append(item.userId);
+        List<String> tags = new ArrayList<>();
+        if (item.black) tags.add("冻结名单");
+        if (item.white) tags.add("白名单");
+        if (item.backgroundPlay) tags.add("后台播放");
+        if (item.locationCheck != 0) tags.add("定位");
+        if (item.networkCheck) tags.add("网络消息");
+        if (item.networkSpeedEnabled) tags.add("网速");
+        if (item.blockAutostart) tags.add("自启动");
+        if (item.processConfig) tags.add("进程");
+        if (item.memoryTrimConfig || item.memoryTrimGcConfig) tags.add("内存");
+        if (AppConfigs.isValidBackgroundOomAdj(item.backgroundOomAdj)) tags.add("OOM " + item.backgroundOomAdj);
+        if (!tags.isEmpty()) summary.append(" · ").append(String.join(" / ", tags));
+        return summary.toString();
+    }
+
     private void showMonitorDetailsLegacy(AppItem item) {
         String type = item.frozenType == null || item.frozenType.isEmpty() ? "未知类型" : item.frozenType;
         String status = item.isFrozen ? "已冻结 · " + type : "未冻结 · " + shortReason(item.notFrozenReason);
@@ -608,8 +630,7 @@ public final class MainActivity extends Activity {
                 + "\n冻结类型：" + type
                 + "\nCPU：" + String.format(Locale.ROOT, "%.2f%%", item.cpuUsage)
                 + "\nRSS：" + formatMemory(item.rss)
-                + "\n压缩：" + item.compactedProcessCount + " 个进程"
-                + "\n\n类型判定：来自每个进程实际 cgroup 状态，不使用固定 V2 标签。";
+                + "\n压缩：" + item.compactedProcessCount + " 个进程";
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle(item.appName == null ? item.packageName : item.appName)
                 .setMessage(message)
@@ -974,7 +995,8 @@ public final class MainActivity extends Activity {
             freeze.setTextColor(MUTED);
             freeze.setChecked(item.black);
             freeze.setOnClickListener(v -> worker.execute(() -> {
-                AppConfigs.setBlackApp(item.packageName, item.userId, freeze.isChecked());
+                item.black = freeze.isChecked();
+                AppConfigs.setBlackApp(item.packageName, item.userId, item.black);
                 ConfigManager.manager.saveConfigSU();
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "已保存 " + item.packageName, Toast.LENGTH_SHORT).show());
             }));
@@ -1012,8 +1034,9 @@ public final class MainActivity extends Activity {
         LinearLayout row = recycled instanceof LinearLayout ? (LinearLayout) recycled : new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(12), dp(10), dp(12), dp(10));
-        row.setBackground(round(SURFACE, 0, 16));
+        row.setPadding(dp(12), dp(8), dp(12), dp(8));
+        row.setMinimumHeight(dp(72));
+        row.setBackground(round(SURFACE, BORDER, 16));
         row.removeAllViews();
         ViewGroup.MarginLayoutParams params = new ViewGroup.MarginLayoutParams(-1, -2);
         params.bottomMargin = dp(8);
@@ -1036,7 +1059,7 @@ public final class MainActivity extends Activity {
             detail = text(item.frozenProcessCount + "/" + item.applicationProcessCount + " 进程" + type + " · "
                     + String.format(Locale.ROOT, "%.2f%% CPU · %s", item.cpuUsage, formatMemory(item.rss)), 11, false);
         } else {
-            detail = text(item.packageName + "#" + item.userId, 11, false);
+            detail = text(appConfigSummary(item), 11, false);
         }
         detail.setTextColor(MUTED);
         labels.addView(name);
