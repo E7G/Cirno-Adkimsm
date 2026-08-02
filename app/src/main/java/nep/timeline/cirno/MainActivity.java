@@ -32,7 +32,7 @@ import com.topjohnwu.superuser.io.SuFile;
 import com.topjohnwu.superuser.io.SuFileInputStream;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -411,7 +411,7 @@ public final class MainActivity extends Activity {
             long length = file.length();
             long offset = Math.max(0L, length - 4L * 1024L * 1024L);
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            try (SuFileInputStream input = SuFileInputStream.open(file)) {
+            try (InputStream input = SuFileInputStream.open(file)) {
                 long remaining = offset;
                 while (remaining > 0L) {
                     long skipped = input.skip(remaining);
