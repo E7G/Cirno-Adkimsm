@@ -56,6 +56,7 @@ import nep.timeline.cirno.utils.PackageUtils;
 
 /** Native Android UI: app configuration plus a live freezer-effect monitor. */
 public final class MainActivity extends Activity {
+    private static final long MONITOR_REFRESH_VISIBLE_MS = 5_000L;
     private int BG;
     private int SURFACE;
     private int TEXT;
@@ -100,6 +101,7 @@ public final class MainActivity extends Activity {
     private View logPage;
     private boolean monitoring;
     private boolean monitorRefreshPending;
+    private boolean activityVisible;
     private int appFilterType;
     private TextView appFilterAction;
 
@@ -396,7 +398,7 @@ public final class MainActivity extends Activity {
         if (monitor) {
             loadMonitor(true);
             mainHandler.removeCallbacks(monitorTick);
-            mainHandler.postDelayed(monitorTick, 1500L);
+            if (activityVisible) mainHandler.postDelayed(monitorTick, MONITOR_REFRESH_VISIBLE_MS);
         } else {
             mainHandler.removeCallbacks(monitorTick);
         }
@@ -554,9 +556,9 @@ public final class MainActivity extends Activity {
     }
 
     private void scheduleMonitorRefresh() {
-        if (!monitoring) return;
+        if (!monitoring || !activityVisible) return;
         loadMonitor(false);
-        mainHandler.postDelayed(monitorTick, 1500L);
+        mainHandler.postDelayed(monitorTick, MONITOR_REFRESH_VISIBLE_MS);
     }
 
     private void updateMonitorSummary() {
@@ -982,6 +984,24 @@ public final class MainActivity extends Activity {
         drawable.setCornerRadius(dp(radiusDp));
         if (stroke != 0) drawable.setStroke(dp(1), stroke);
         return drawable;
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        activityVisible = true;
+        if (monitoring) {
+            loadMonitor(false);
+            mainHandler.removeCallbacks(monitorTick);
+            mainHandler.postDelayed(monitorTick, MONITOR_REFRESH_VISIBLE_MS);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        activityVisible = false;
+        mainHandler.removeCallbacks(monitorTick);
+        super.onStop();
     }
 
     @Override

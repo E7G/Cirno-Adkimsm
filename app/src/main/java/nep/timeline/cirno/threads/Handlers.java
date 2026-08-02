@@ -14,18 +14,25 @@ import nep.timeline.cirno.log.Log;
 public class Handlers {
     private static final List<HandlerThread> THREADS = new CopyOnWriteArrayList<>();
 
-    public static final Handler alarms = makeHandler("Alarms");
-    public static final Handler network = makeHandler("Network");
-    public static final Handler audio = makeHandler("Audio");
-    public static final Handler camera = makeHandler("Camera");
-    public static final Handler location = makeHandler("Location");
-    public static final Handler notification = makeHandler("Notification");
-    public static final Handler rekernel = makeHandler("ReKernel");
-    public static final Handler binder = makeHandler("Binder");
-    public static final Handler log = makeHandlerBackground("Log");
-    public static final Handler config = makeHandlerBackground("Config");
-    public static final Handler broadcast = makeHandlerBackground("Broadcast");
-    public static final Handler hookDebug = makeHandlerBackground("HookDebug");
+    // Most callbacks are tiny state updates. Sharing loopers avoids nine permanently resident
+    // thread stacks while keeping potentially blocking network statistics isolated.
+    private static final Looper CORE_LOOPER = makeLooper("Core");
+    private static final Looper NETWORK_LOOPER = makeLooper("Network");
+    private static final Looper BINDER_LOOPER = makeLooper("Binder");
+    private static final Looper BACKGROUND_LOOPER = makeLooperBackground("Background");
+
+    public static final Handler alarms = new Handler(CORE_LOOPER);
+    public static final Handler network = new Handler(NETWORK_LOOPER);
+    public static final Handler audio = new Handler(CORE_LOOPER);
+    public static final Handler camera = new Handler(CORE_LOOPER);
+    public static final Handler location = new Handler(CORE_LOOPER);
+    public static final Handler notification = new Handler(CORE_LOOPER);
+    public static final Handler rekernel = new Handler(CORE_LOOPER);
+    public static final Handler binder = new Handler(BINDER_LOOPER);
+    public static final Handler log = new Handler(BACKGROUND_LOOPER);
+    public static final Handler config = new Handler(BACKGROUND_LOOPER);
+    public static final Handler broadcast = new Handler(BACKGROUND_LOOPER);
+    public static final Handler hookDebug = new Handler(BACKGROUND_LOOPER);
 
     public static Handler makeHandlerForeground(String str) {
         return makeHandlerForeground(str, false);

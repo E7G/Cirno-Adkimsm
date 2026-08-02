@@ -7,6 +7,7 @@ import java.io.File;
 
 import nep.timeline.cirno.GlobalVars;
 import nep.timeline.cirno.master.AndroidHooks;
+import nep.timeline.cirno.services.NetworkSpeedMonitor;
 import nep.timeline.cirno.threads.Handlers;
 import nep.timeline.cirno.log.Log;
 
@@ -14,6 +15,7 @@ public class ConfigFileObserver extends FileObserver {
     private static final String GLOBAL_SETTINGS_FILE = "GlobalSettings.json";
     private static final String APPLICATION_SETTINGS_FILE = "ApplicationSettings.json";
     private static final Object LOCK = new Object();
+    private static final Object CALLBACK_TOKEN = new Object();
 
     public ConfigFileObserver() {
         super(GlobalVars.CONFIG_DIR, FileObserver.DELETE | FileObserver.DELETE_SELF | FileObserver.MODIFY | FileObserver.MOVE_SELF);
@@ -30,13 +32,13 @@ public class ConfigFileObserver extends FileObserver {
             case FileObserver.DELETE_SELF:
             case FileObserver.MOVE_SELF: {
                 Log.d("配置监听：配置目录被删除/移动 EVENT " + event);
-                handler.removeCallbacksAndMessages(null);
+                handler.removeCallbacksAndMessages(CALLBACK_TOKEN);
                 handler.postDelayed(() -> {
                     reInit();
                     // 目录被删除后内核会移除 inotify watch，必须重新注册
                     startWatching();
                     readConfigSynchronized();
-                }, 2000);
+                }, CALLBACK_TOKEN, 2000);
                 break;
             }
             case FileObserver.DELETE:
@@ -44,8 +46,8 @@ public class ConfigFileObserver extends FileObserver {
                 // 只响应两个配置文件的变化，无关文件事件不再取消已排队的重载任务
                 if (!GLOBAL_SETTINGS_FILE.equals(path) && !APPLICATION_SETTINGS_FILE.equals(path)) break;
                 Log.d("配置热更新：EVENT " + event + " Path " + path);
-                handler.removeCallbacksAndMessages(null);
-                handler.postDelayed(ConfigFileObserver::readConfigSynchronized, 2000);
+                handler.removeCallbacksAndMessages(CALLBACK_TOKEN);
+                handler.postDelayed(ConfigFileObserver::readConfigSynchronized, CALLBACK_TOKEN, 2000);
                 break;
             }
         }
@@ -55,6 +57,7 @@ public class ConfigFileObserver extends FileObserver {
         synchronized (LOCK) {
             ConfigManager.manager.readConfig();
             AndroidHooks.syncCachedAppOptimizerHooks();
+            NetworkSpeedMonitor.onConfigurationChanged();
         }
     }
 

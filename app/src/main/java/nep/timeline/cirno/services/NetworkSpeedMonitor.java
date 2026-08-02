@@ -14,6 +14,8 @@ import nep.timeline.cirno.log.Log;
 import nep.timeline.cirno.threads.Handlers;
 
 public class NetworkSpeedMonitor {
+    private static final long POLL_INTERVAL_ACTIVE_MS = 2_000L;
+    private static final Runnable POLL_TASK = NetworkSpeedMonitor::poll;
     private static final Object READ_METHOD_LOCK = new Object();
     private static volatile IBinder sNetStatsBinder;
     private static volatile boolean sMonitoring = false;
@@ -42,7 +44,7 @@ public class NetworkSpeedMonitor {
         }
 
         sMonitoring = true;
-        Handlers.network.postDelayed(NetworkSpeedMonitor::poll, 1000);
+        onConfigurationChanged();
     }
 
     public static void stopForHotReload() {
@@ -55,23 +57,31 @@ public class NetworkSpeedMonitor {
         sReadNetworkStatsUidDetailMethod = null;
     }
 
-    private static final long POLL_INTERVAL_ACTIVE_MS = 1000L;
-    private static final long POLL_INTERVAL_IDLE_MS = 5000L;
+    public static void onConfigurationChanged() {
+        if (!sMonitoring) return;
+        Handlers.network.removeCallbacks(POLL_TASK);
+        if (AppConfigs.hasAnyNetworkSpeedApps()) {
+            Handlers.network.post(POLL_TASK);
+        } else {
+            clearCaches();
+        }
+    }
+
+    private static void clearCaches() {
+        sSnapshots.clear();
+        sSpeedCache.clear();
+        sReadFailed.clear();
+    }
 
     private static void poll() {
         if (!sMonitoring) {
             return;
         }
-        long nextDelay = POLL_INTERVAL_ACTIVE_MS;
         try {
             // 省电快路径：没有任何应用开启网速监控时，不再每秒扫描全部 AppRecord 并读取网络统计
             if (!AppConfigs.hasAnyNetworkSpeedApps()) {
-                if (!sSnapshots.isEmpty() || !sSpeedCache.isEmpty()) {
-                    sSnapshots.clear();
-                    sSpeedCache.clear();
-                    sReadFailed.clear();
-                }
-                nextDelay = POLL_INTERVAL_IDLE_MS;
+                clearCaches();
+                return;
             } else {
                 long now = System.currentTimeMillis();
                 int threshold = GlobalVars.globalSettings != null ? GlobalVars.globalSettings.networkSpeedThreshold : 102400;
@@ -95,8 +105,8 @@ public class NetworkSpeedMonitor {
         } catch (Throwable e) {
             Log.e("NetworkSpeedMonitor poll error", e);
         }
-        if (sMonitoring) {
-            Handlers.network.postDelayed(NetworkSpeedMonitor::poll, nextDelay);
+        if (sMonitoring && AppConfigs.hasAnyNetworkSpeedApps()) {
+            Handlers.network.postDelayed(POLL_TASK, POLL_INTERVAL_ACTIVE_MS);
         }
     }
 
