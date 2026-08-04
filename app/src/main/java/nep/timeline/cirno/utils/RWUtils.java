@@ -14,12 +14,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.atomic.AtomicLong;
 
 import nep.timeline.cirno.entity.AppRecord;
 import nep.timeline.cirno.log.Log;
 import nep.timeline.cirno.services.AppService;
 
 public class RWUtils {
+    private static final long FROZEN_ERROR_LOG_INTERVAL_MS = 60_000L;
+    private static final AtomicLong LAST_FROZEN_ERROR_LOG_MS = new AtomicLong();
     public static String readConfig(SuFile file) {
         try {
             return IOUtils.toString(() -> SuFileInputStream.open(file), StandardCharsets.UTF_8);
@@ -73,7 +76,18 @@ public class RWUtils {
                 return false;
 
             String message = e.getMessage();
-            boolean processGone = message != null && (message.contains("ESRCH") || message.contains("No such process"));
+            boolean processGone = message != null && (message.contains("ESRCH")
+                    || message.contains("ENOENT")
+                    || message.contains("No such process")
+                    || message.contains("No such file"));
+
+            // A process can exit between lookup and cgroup write. This is normal
+            // and should not wake the log thread or emit an exception stack.
+            if (processGone)
+                return false;
+
+            if (!shouldLogFrozenError())
+                return false;
 
             String label = "";
             Matcher m = UID_PATTERN.matcher(path);
@@ -84,12 +98,15 @@ public class RWUtils {
                     label = " [" + records.get(0).getPackageNameWithUser() + "]";
                 }
             }
-            if (processGone) {
-                Log.w(path + " | 进程已不存在，跳过冻结状态写入" + label + ", value=" + value, e);
-                return false;
-            }
             Log.w(path + " | 写入冻结状态失败" + label + ", 请检查cgroup v2支持、路径或权限", e);
             return false;
         }
+    }
+
+    private static boolean shouldLogFrozenError() {
+        long now = android.os.SystemClock.uptimeMillis();
+        long last = LAST_FROZEN_ERROR_LOG_MS.get();
+        return (last == 0L || now - last >= FROZEN_ERROR_LOG_INTERVAL_MS)
+                && LAST_FROZEN_ERROR_LOG_MS.compareAndSet(last, now);
     }
 }

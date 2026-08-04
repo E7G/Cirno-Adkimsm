@@ -84,14 +84,16 @@ public class WakeLockHook extends MethodHook {
 
     private static Set<Integer> collectAttributedUids(int ownerUid, WorkSource workSource) {
         Set<Integer> result = new HashSet<>();
-        if (ownerUid > android.os.Process.SYSTEM_UID) result.add(ownerUid);
+        if (ownerUid > android.os.Process.SYSTEM_UID && shouldTrackUid(ownerUid))
+            result.add(ownerUid);
         if (workSource == null) return result;
 
         try {
             int size = (int) CakeReflection.callMethod(workSource, "size");
             for (int i = 0; i < size; i++) {
                 int uid = (int) CakeReflection.callMethod(workSource, "getUid", i);
-                if (uid > android.os.Process.SYSTEM_UID) result.add(uid);
+                if (uid > android.os.Process.SYSTEM_UID && shouldTrackUid(uid))
+                    result.add(uid);
             }
         } catch (Throwable ignored) {
         }
@@ -103,13 +105,42 @@ public class WakeLockHook extends MethodHook {
                     int[] uids = (int[]) CakeReflection.callMethod(chain, "getUids");
                     if (uids == null) continue;
                     for (int uid : uids) {
-                        if (uid > android.os.Process.SYSTEM_UID) result.add(uid);
+                        if (uid > android.os.Process.SYSTEM_UID && shouldTrackUid(uid))
+                            result.add(uid);
                     }
                 }
             }
         } catch (Throwable ignored) {
         }
         return result;
+    }
+
+    // acquireWakeLockInternal is a system hot path. Keep token state only for
+    // UIDs whose apps Cirno may strictly freeze; tracking every Android app
+    // wastes CPU and retains binder tokens that can never be acted on.
+    private static boolean shouldTrackUid(int uid) {
+        List<AppRecord> records = AppService.getByUid(uid);
+        if (records.isEmpty()) return false;
+
+        boolean managed = false;
+        for (AppRecord record : records) {
+            if (record == null) continue;
+            if (CommonConstants.isTelephonyPackage(record.getPackageName(), uid)
+                    || AppConfigs.isNetworkMessageAllowed(
+                    record.getPackageName(), record.getUserId())) {
+                return false;
+            }
+            if (AppConfigs.isBlackApp(record.getPackageName(), record.getUserId())) {
+                managed = true;
+                continue;
+            }
+            if (AppConfigs.isWhiteApp(record.getPackageName(), record.getUserId())
+                    || PKGUtils.isSystemApp(record.getApplicationInfo())) {
+                return false;
+            }
+            managed = true;
+        }
+        return managed;
     }
 
     private static boolean containsStrictlyFrozenUid(Set<Integer> uids) {

@@ -56,7 +56,7 @@ import nep.timeline.cirno.utils.PackageUtils;
 
 /** Native Android UI: app configuration plus a live freezer-effect monitor. */
 public final class MainActivity extends Activity {
-    private static final long MONITOR_REFRESH_VISIBLE_MS = 5_000L;
+    private static final long MONITOR_REFRESH_VISIBLE_MS = 10_000L;
     private int BG;
     private int SURFACE;
     private int TEXT;
