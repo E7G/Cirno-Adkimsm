@@ -53,8 +53,6 @@ import nep.timeline.cirno.hooks.android.recorder.ReleaseRecorderHook;
 import nep.timeline.cirno.hooks.android.signal.SendSignalHook;
 import nep.timeline.cirno.hooks.android.signal.SendSignalQuietHook;
 import nep.timeline.cirno.hooks.android.vpn.VpnStateHook;
-import nep.timeline.cirno.hooks.android.wakelock.WakeLockHook;
-import nep.timeline.cirno.hooks.android.wakelock.WakeLockReleaseHook;
 
 public class AndroidHooks {
     private static final String CACHED_APP_OPTIMIZER_CLASS = "com.android.server.am.CachedAppOptimizer";
@@ -102,9 +100,8 @@ public class AndroidHooks {
         else
             new BroadcastSkipHook(classLoader);
         new AutostartBlockHook(classLoader);
-        // WakeLock
-        new WakeLockHook(classLoader);
-        new WakeLockReleaseHook(classLoader);
+        // Do not intercept PMS wakelock acquire/release. Removing a token behind
+        // its owner makes later setWorkSource/release calls crash system_server.
         // Activity
         new ActivityManagerServiceHook(classLoader);
         new ActivityManagerSystemReadyHook(classLoader);

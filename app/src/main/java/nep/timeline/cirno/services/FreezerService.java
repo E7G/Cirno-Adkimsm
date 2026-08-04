@@ -9,7 +9,6 @@ import nep.timeline.cirno.configs.policy.FreezeExemption;
 import nep.timeline.cirno.entity.AppRecord;
 import nep.timeline.cirno.GlobalVars;
 import nep.timeline.cirno.hooks.android.xiaomi.XiaomiHooks;
-import nep.timeline.cirno.hooks.android.wakelock.WakeLockHook;
 import nep.timeline.cirno.log.Log;
 import nep.timeline.cirno.core.AndroidPolicy;
 import nep.timeline.cirno.threads.FreezerHandler;
@@ -104,10 +103,6 @@ public class FreezerService {
             }
 
             appRecord.setFrozen(true);
-
-            if (!networkMessageAllowed) {
-                Handlers.alarms.post(() -> WakeLockHook.releaseForFrozenUid(appRecord.getUid()));
-            }
 
             Handlers.network.post(() -> {
                 // 冻结后毫秒级被解冻的场景下，不再销毁已恢复运行应用的 TCP 连接
